@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة رفع الصور | بقالة السفير</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .upload-container { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        h2 { color: #1a531b; margin-bottom: 20px; }
+        .file-input-wrapper { margin-bottom: 20px; }
+        input[type="file"] { width: 100%; padding: 10px; border: 1px dashed #2e7d32; border-radius: 8px; cursor: pointer; }
+        button { background-color: #2e7d32; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.3s; width: 100%; }
+        button:hover { background-color: #1a531b; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #message { margin-top: 15px; font-size: 14px; line-height: 1.6; }
+        .success { color: #2e7d32; }
+        .error { color: #d32f2f; }
+        .preview-img { max-width: 100%; height: auto; margin-top: 15px; border-radius: 8px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="upload-container">
+    <h2>رفع صور المنتجات</h2>
+    <div class="file-input-wrapper">
+        <input type="file" id="imageInput" accept="image/*">
+    </div>
+    <button id="uploadBtn">رفع الصورة الآن</button>
+    <div id="message"></div>
+    <img id="preview" class="preview-img" alt="معاينة الصورة">
+</div>
+
+<script>
+    // --- إعدادات Supabase ---
+    // استبدل القيم أدناه ببيانات مشروعك الفعلية من إعدادات Supabase
+    const SUPABASE_URL = 'https://your-project-url.supabase.co';
+    const SUPABASE_ANON_KEY = 'your-anon-key';
+    
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const uploadBtn = document.getElementById('uploadBtn');
+    const imageInput = document.getElementById('imageInput');
+    const message = document.getElementById('message');
+    const preview = document.getElementById('preview');
+
+    uploadBtn.addEventListener('click', async () => {
+        const file = imageInput.files[0];
+
+        if (!file) {
+            showMessage("❌ يرجى اختيار صورة أولاً", "error");
+            return;
+        }
+
+        // التحقق من حجم الملف (الحد الأقصى لديك 50MB)
+        if (file.size > 50 * 1024 * 1024) {
+            showMessage("❌ حجم الملف كبير جداً (الأقصى 50MB)", "error");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            // إنشاء اسم فريد للملف
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}.${fileExt}`;
+            const filePath = `products/${fileName}`;
+
+            // الرفع إلى Bucket المسمى 'market'
+            const { data, error } = await supabase.storage
+                .from('market')
+                .upload(filePath, file);
+
+            if (error) throw error;
+
+            // الحصول على الرابط العام
+            const { data: publicUrlData } = supabase.storage
+                .from('market')
+                .getPublicUrl(filePath);
+
+            const publicUrl = publicUrlData.publicUrl;
+
+            showMessage(`✅ تم الرفع بنجاح!<br><a href="${publicUrl}" target="_blank">رابط الصورة المباشر</a>`, "success");
+            
+            // إظهار معاينة للصورة
+            preview.src = publicUrl;
+            preview.style.display = 'block';
+            imageInput.value = ''; // تفريغ الحقل
+
+        } catch (error) {
+            console.error(error);
+            showMessage("❌ حدث خطأ أثناء الرفع: " + error.message, "error");
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    function showMessage(text, type) {
+        message.innerHTML = text;
+        message.className = type;
+    }
+
+    function setLoading(isLoading) {
+        uploadBtn.disabled = isLoading;
+        uploadBtn.innerText = isLoading ? "⏳ جاري الرفع..." : "رفع الصورة الآن";
+    }
+</script>
+
+</body>
+</html>
